@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gorillas — Contact Heatmap</title>
+<style>
+  :root {
+    --bg: #F5F0E8;
+    --surface: #EDE8DF;
+    --border: #D8D0C4;
+    --text: #1A1A1A;
+    --muted: #888;
+    --meeting: #4a9eff;
+    --call: #FF0066;
+    --whatsapp: #3ecf6a;
+    --email: #999;
+    --empty: #E0D8CC;
+    --hover-bg: #EDE8DF;
+    --name-w: 160px;
+    --cell: 11px;
+    --gap: 2px;
+  }
+
+  /* Tablet a */
+  @media (max-width: 900px) {
+    :root {
+      --name-w: 110px;
+      --cell: 9px;
+      --gap: 2px;
+    }
+    header {
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 14px;
+    }
+    .legend {
+      gap: 8px;
+    }
+    input[type="search"] {
+      width: 140px;
+    }
+    .sort-bar {
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 6px 14px;
+    }
+    .contacts-list {
+      padding: 4px 14px 30px;
+    }
+    .month-header {
+      padding: 8px 14px 4px;
+    }
+    .month-spacer {
+      width: var(--name-w);
+    }
+  }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    :root {
+      --name-w: 72px;
+      --cell: 6px;
+      --gap: 1px;
+    }
+    header {
+      padding: 10px 10px;
+      gap: 6px;
+    }
+    .title {
+      font-size: 13px;
+    }
+    .controls {
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    input[type="search"] {
+      width: 120px;
+      font-size: 11px;
+    }
+    .legend {
+      gap: 6px;
+      font-size: 10px;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+    }
+    .sort-bar {
+      padding: 5px 10px;
+      gap: 4px;
+    }
+    .sort-btn {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+    .sort-label {
+      font-size: 10px;
+    }
+    .month-header {
+      padding: 6px 10px 3px;
+      top: 48px;
+    }
+    .month-spacer {
+      width: var(--name-w);
+    }
+    .month-label {
+      font-size: 8px;
+    }
+    .contacts-list {
+      padding: 3px 10px 20px;
+    }
+    .contact-name {
+      font-size: 10px;
+      padding-right: 6px;
+    }
+    .contact-count {
+      font-size: 9px;
+      padding-left: 6px;
+    }
+    .contact-row {
+      padding: 2px 0;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  input[type="search"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 10px;
+    width: 180px;
+    outline: none;
+  }
+  input[type="search"]:focus { border-color: #444; }
+  input[type="search"]::placeholder { color: var(--muted); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .dot-meeting { background: var(--meeting); }
+  .dot-call { background: var(--call); }
+  .dot-whatsapp { background: var(--whatsapp); }
+  .dot-email { background: var(--email); }
+
+  /* Month labels row */
+  .month-header-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0 4px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 9;
+    border-bottom: 1px solid var(--border);
+    min-width: fit-content;
+  }
+
+  .month-spacer {
+    width: var(--name-w);
+    min-width: var(--name-w);
+    max-width: var(--name-w);
+    flex-shrink: 0;
+    position: sticky;
+    left: 0;
+    background: var(--bg);
+    z-index: 3;
+    box-sizing: border-box;
+  }
+
+  .month-labels {
+    display: flex;
+    gap: var(--gap);
+    overflow: hidden;
+  }
+
+  .month-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: left;
+    flex-shrink: 0;
+    overflow: visible;
+    white-space: nowrap;
+  }
+
+  /* Contact rows */
+  .contacts-list {
+    padding: 0 20px 40px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contacts-inner {
+    min-width: fit-content;
+    padding-top: 0;
+  }
+
+  .contact-row {
+    display: flex;
+    align-items: center;
+    padding: 3px 0;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+    width: 100%;
+    position: relative;
+  }
+
+  .contact-row:hover { background: var(--hover-bg); }
+
+  .contact-name {
+    width: var(--name-w);
+    min-width: var(--name-w);
+    max-width: var(--name-w);
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text);
+    padding-right: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    position: sticky;
+    left: 0;
+    background: var(--bg);
+    z-index: 2;
+    box-sizing: border-box;
+  }
+
+  .contact-name:hover { color: #fff; }
+
+  .grid-row {
+    display: flex;
+    gap: var(--gap);
+    flex-wrap: nowrap;
+  }
+
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    border-radius: 2px;
+    background: var(--empty);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .cell.meeting { background: var(--meeting); }
+  .cell.call    { background: var(--call); }
+  .cell.whatsapp{ background: var(--whatsapp); }
+  .cell.email   { background: var(--email); }
+
+  .cell[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 6px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .contact-count {
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: auto;
+    padding-left: 12px;
+    flex-shrink: 0;
+  }
+
+  /* Loading / error */
+  .status {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .status.error { color: #e05555; }
+
+  /* Sort bar */
+  .sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sort-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .sort-btn.active, .sort-btn:hover {
+    border-color: #555;
+    color: var(--text);
+  }
+
+  .sort-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">🦍 Gorillas — Contact Heatmap</span>
+  <div class="controls">
+    <input type="search" id="search" placeholder="Filter by name…" autocomplete="off">
+    <div class="legend">
+      <div class="legend-item"><div class="dot dot-meeting"></div>Meeting</div>
+      <div class="legend-item"><div class="dot dot-call"></div>Call</div>
+      <div class="legend-item"><div class="dot dot-whatsapp"></div>WhatsApp</div>
+      <div class="legend-item"><div class="dot dot-email"></div>Email</div>
+    </div>
+  </div>
+</header>
+
+<div class="sort-bar">
+  <span class="sort-label">Sort:</span>
+  <button class="sort-btn active" data-sort="name">A → Z</button>
+  <button class="sort-btn" data-sort="count-asc">Least contact ↑</button>
+  <button class="sort-btn" data-sort="count-desc">Most contact ↓</button>
+  <button class="sort-btn" data-sort="recent">Most recent</button>
+</div>
+
+<div class="contacts-list" id="contactsList">
+  <div class="contacts-inner" id="contactsInner">
+    <div class="month-header-row" id="monthHeaderRow">
+      <div class="month-spacer"></div>
+      <div class="month-labels" id="monthLabels"></div>
+    </div>
+    <div class="status" id="status">Loading interactions…</div>
+  </div>
+</div>
+
+<script>
+const CELL = 11;
+const GAP = 2;
+const TYPE_PRIORITY = ['Meeting','Call','WhatsApp','Email'];
+
+let allContacts = [];
+let sortMode = 'name';
+
+// Returns array of 53 week objects, each with 7 date strings (YYYY-MM-DD)
+// Weeks run Mon–Sun. First week contains Jan 1. Last week contains Dec 31.
+function buildWeeks() {
+  const year = new Date().getFullYear();
+
+  // Monday on or before Jan 1
+  const jan1 = new Date(year, 0, 1);
+  const dow0 = jan1.getDay(); // 0=Sun
+  const toMon = dow0 === 0 ? 6 : dow0 - 1;
+  const firstMon = new Date(jan1);
+  firstMon.setDate(jan1.getDate() - toMon);
+
+  // Monday on or before Dec 31
+  const dec31 = new Date(year, 11, 31);
+  const dowD = dec31.getDay();
+  const toMonD = dowD === 0 ? 6 : dowD - 1;
+  const lastMon = new Date(dec31);
+  lastMon.setDate(dec31.getDate() - toMonD);
+
+  const ms7 = 7 * 86400000;
+  const nWeeks = Math.round((lastMon - firstMon) / ms7) + 1;
+
+  const weeks = [];
+  for (let w = 0; w < nWeeks; w++) {
+    const days = [];
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(firstMon);
+      dt.setDate(firstMon.getDate() + w * 7 + d);
+      days.push(dt.toISOString().substring(0, 10));
+    }
+    weeks.push(days);
+  }
+  return { weeks, year };
+}
+
+function buildMonthLabels(weeks, year) {
+  const container = document.getElementById('monthLabels');
+  container.innerHTML = '';
+  const cellW = CELL + GAP;
+  let lastMonth = -1;
+
+  weeks.forEach(days => {
+    // Label based on first day of this week that's in the current year
+    const firstInYear = days.find(ds => parseInt(ds.substring(0,4)) === year);
+    const el = document.createElement('div');
+    el.className = 'month-label';
+    el.style.cssText = `width:${cellW}px;flex-shrink:0;`;
+
+    if (firstInYear) {
+      const m = parseInt(firstInYear.substring(5,7)) - 1;
+      if (m !== lastMonth) {
+        const dt = new Date(firstInYear);
+        el.textContent = dt.toLocaleString('default', { month: 'short' });
+        lastMonth = m;
+      }
+    }
+    container.appendChild(el);
+  });
+}
+
+function typeClass(type) {
+  if (!type) return '';
+  return type.toLowerCase();
+}
+
+function renderContacts(contacts) {
+  // Remove old contact rows only, keep month header row
+  const list = document.getElementById('contactsInner');
+  const existingRows = list.querySelectorAll('.contact-row, .status');
+  existingRows.forEach(el => el.remove());
+
+  if (contacts.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'status';
+    empty.textContent = 'No contacts found.';
+    list.appendChild(empty);
+    return;
+  }
+
+  const { weeks, year } = buildWeeks();
+  buildMonthLabels(weeks, year);
+
+  contacts.forEach(contact => {
+    // Build date→type map
+    const dateMap = {};
+    contact.interactions.forEach(i => {
+      if (!dateMap[i.date]) {
+        dateMap[i.date] = i.type;
+      } else {
+        const existing = TYPE_PRIORITY.indexOf(dateMap[i.date]);
+        const incoming = TYPE_PRIORITY.indexOf(i.type);
+        if (incoming < existing) dateMap[i.date] = i.type;
+      }
+    });
+
+    const row = document.createElement('div');
+    row.className = 'contact-row';
+    row.dataset.name = contact.name.toLowerCase();
+
+    // Frozen name column
+    const nameEl = document.createElement('a');
+    nameEl.className = 'contact-name';
+    nameEl.textContent = contact.name;
+    nameEl.title = contact.name;
+    if (contact.url) {
+      nameEl.href = contact.url;
+      nameEl.target = '_blank';
+      nameEl.rel = 'noopener';
+    }
+    nameEl.addEventListener('click', e => e.stopPropagation());
+    row.appendChild(nameEl);
+
+    // Grid — exactly one cell per week, same count as month labels
+    const grid = document.createElement('div');
+    grid.className = 'grid-row';
+
+    weeks.forEach(days => {
+      let bestType = null;
+      let bestDate = null;
+      days.forEach(ds => {
+        if (parseInt(ds.substring(0,4)) !== year) return; // skip out-of-year days
+        if (dateMap[ds]) {
+          const t = dateMap[ds];
+          const pi = TYPE_PRIORITY.indexOf(t);
+          const bi = bestType ? TYPE_PRIORITY.indexOf(bestType) : 999;
+          if (pi < bi) { bestType = t; bestDate = ds; }
+        }
+      });
+
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (bestType ? ' ' + typeClass(bestType) : '');
+      if (bestType && bestDate) {
+        cell.setAttribute('data-tip', bestDate + ' · ' + bestType);
+      }
+      grid.appendChild(cell);
+    });
+
+    row.appendChild(grid);
+
+    // Count badge pinned to right
+    const count = document.createElement('span');
+    count.className = 'contact-count';
+    count.textContent = contact.interactions.length;
+    row.appendChild(count);
+
+    list.appendChild(row);
+  });
+}
+
+function sortContacts(contacts, mode) {
+  const c = [...contacts];
+  if (mode === 'name') {
+    c.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (mode === 'count-asc') {
+    c.sort((a, b) => a.interactions.length - b.interactions.length);
+  } else if (mode === 'count-desc') {
+    c.sort((a, b) => b.interactions.length - a.interactions.length);
+  } else if (mode === 'recent') {
+    c.sort((a, b) => {
+      const aMax = a.interactions.reduce((m, i) => i.date > m ? i.date : m, '');
+      const bMax = b.interactions.reduce((m, i) => i.date > m ? i.date : m, '');
+      return bMax.localeCompare(aMax);
+    });
+  }
+  return c;
+}
+
+function filterAndRender() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let contacts = sortContacts(allContacts, sortMode);
+  if (q) contacts = contacts.filter(c => c.name.toLowerCase().includes(q));
+  renderContacts(contacts);
+}
+
+// Sort buttons
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sortMode = btn.dataset.sort;
+    filterAndRender();
+  });
+});
+
+// Search
+document.getElementById('search').addEventListener('input', filterAndRender);
+
+// Fetch from Netlify function
+async function load() {
+  const status = document.getElementById('status');
+  try {
+    const res = await fetch('/.netlify/functions/notion');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    allContacts = data.contacts || [];
+    if (allContacts.length === 0) {
+      status.textContent = 'No interactions logged yet. Add some in the Interactions Log.';
+      return;
+    }
+    filterAndRender();
+  } catch (err) {
+    status.className = 'status error';
+    status.textContent = 'Error loading data: ' + err.message;
+  }
+}
+
+load();
+</script>
+</body>
+</html>
