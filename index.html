@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gorillas — Contact Heatmap</title>
+<style>
+  :root {
+    --bg: #111111;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e8e8e8;
+    --muted: #555;
+    --meeting: #4a9eff;
+    --call: #3ecf6a;
+    --whatsapp: #f5c842;
+    --email: #888;
+    --empty: #222;
+    --hover-bg: #242424;
+    --name-w: 160px;
+    --cell: 11px;
+    --gap: 2px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  input[type="search"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 5px 10px;
+    width: 180px;
+    outline: none;
+  }
+  input[type="search"]:focus { border-color: #444; }
+  input[type="search"]::placeholder { color: var(--muted); }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .dot-meeting { background: var(--meeting); }
+  .dot-call { background: var(--call); }
+  .dot-whatsapp { background: var(--whatsapp); }
+  .dot-email { background: var(--email); }
+
+  /* Month labels row */
+  .month-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 4px;
+    position: sticky;
+    top: 53px;
+    background: var(--bg);
+    z-index: 9;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .month-spacer {
+    width: var(--name-w);
+    flex-shrink: 0;
+  }
+
+  .month-labels {
+    display: flex;
+    gap: var(--gap);
+    overflow: hidden;
+  }
+
+  .month-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* Contact rows */
+  .contacts-list {
+    padding: 6px 20px 40px;
+  }
+
+  .contact-row {
+    display: flex;
+    align-items: center;
+    padding: 3px 0;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .contact-row:hover { background: var(--hover-bg); }
+
+  .contact-name {
+    width: var(--name-w);
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text);
+    padding-right: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+  }
+
+  .contact-name:hover { color: #fff; }
+
+  .grid-row {
+    display: flex;
+    gap: var(--gap);
+    flex-wrap: nowrap;
+  }
+
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    border-radius: 2px;
+    background: var(--empty);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .cell.meeting { background: var(--meeting); }
+  .cell.call    { background: var(--call); }
+  .cell.whatsapp{ background: var(--whatsapp); }
+  .cell.email   { background: var(--email); }
+
+  .cell[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 6px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .contact-count {
+    font-size: 10px;
+    color: var(--muted);
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Loading / error */
+  .status {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .status.error { color: #e05555; }
+
+  /* Sort bar */
+  .sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sort-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .sort-btn.active, .sort-btn:hover {
+    border-color: #555;
+    color: var(--text);
+  }
+
+  .sort-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">🦍 Gorillas — Contact Heatmap</span>
+  <div class="controls">
+    <input type="search" id="search" placeholder="Filter by name…" autocomplete="off">
+    <div class="legend">
+      <div class="legend-item"><div class="dot dot-meeting"></div>Meeting</div>
+      <div class="legend-item"><div class="dot dot-call"></div>Call</div>
+      <div class="legend-item"><div class="dot dot-whatsapp"></div>WhatsApp</div>
+      <div class="legend-item"><div class="dot dot-email"></div>Email</div>
+    </div>
+  </div>
+</header>
+
+<div class="sort-bar">
+  <span class="sort-label">Sort:</span>
+  <button class="sort-btn active" data-sort="name">A → Z</button>
+  <button class="sort-btn" data-sort="count-asc">Least contact ↑</button>
+  <button class="sort-btn" data-sort="count-desc">Most contact ↓</button>
+  <button class="sort-btn" data-sort="recent">Most recent</button>
+</div>
+
+<div class="month-header">
+  <div class="month-spacer"></div>
+  <div class="month-labels" id="monthLabels"></div>
+</div>
+
+<div class="contacts-list" id="contactsList">
+  <div class="status" id="status">Loading interactions…</div>
+</div>
+
+<script>
+const WEEKS = 52;
+const CELL = 11;
+const GAP = 2;
+const TYPE_PRIORITY = ['Meeting','Call','WhatsApp','Email'];
+
+let allContacts = [];
+let sortMode = 'name';
+
+// Build date index: 52 weeks back from today
+function buildDateIndex() {
+  const today = new Date();
+  const dow = today.getDay(); // 0=Sun
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - daysToMon);
+
+  const firstDay = new Date(weekStart);
+  firstDay.setDate(weekStart.getDate() - (WEEKS - 1) * 7);
+
+  // Build array of 52*7 dates, column-major (week by week, Mon–Sun)
+  const dates = [];
+  for (let w = 0; w < WEEKS; w++) {
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(firstDay);
+      dt.setDate(firstDay.getDate() + w * 7 + d);
+      dates.push(dt.toISOString().substring(0, 10));
+    }
+  }
+  return { dates, firstDay };
+}
+
+function buildMonthLabels(firstDay) {
+  const container = document.getElementById('monthLabels');
+  container.innerHTML = '';
+  const cellW = CELL + GAP;
+  let lastMonth = -1;
+
+  for (let w = 0; w < WEEKS; w++) {
+    const dt = new Date(firstDay);
+    dt.setDate(firstDay.getDate() + w * 7);
+    const m = dt.getMonth();
+
+    const el = document.createElement('div');
+    el.className = 'month-label';
+    el.style.width = cellW + 'px';
+
+    if (m !== lastMonth) {
+      el.textContent = dt.toLocaleString('default', { month: 'short' });
+      lastMonth = m;
+    }
+    container.appendChild(el);
+  }
+}
+
+function typeClass(type) {
+  if (!type) return '';
+  return type.toLowerCase().replace('whatsapp','whatsapp');
+}
+
+function renderContacts(contacts) {
+  const list = document.getElementById('contactsList');
+  list.innerHTML = '';
+
+  if (contacts.length === 0) {
+    list.innerHTML = '<div class="status">No contacts found.</div>';
+    return;
+  }
+
+  const { dates, firstDay } = buildDateIndex();
+  buildMonthLabels(firstDay);
+
+  // Build date→type map per contact
+  contacts.forEach(contact => {
+    const dateMap = {};
+    contact.interactions.forEach(i => {
+      if (!dateMap[i.date]) {
+        dateMap[i.date] = i.type;
+      } else {
+        // Priority: Meeting > Call > WhatsApp > Email
+        const existing = TYPE_PRIORITY.indexOf(dateMap[i.date]);
+        const incoming = TYPE_PRIORITY.indexOf(i.type);
+        if (incoming < existing) dateMap[i.date] = i.type;
+      }
+    });
+
+    const row = document.createElement('div');
+    row.className = 'contact-row';
+    row.dataset.name = contact.name.toLowerCase();
+
+    // Name — clickable to Notion page
+    const nameEl = document.createElement('a');
+    nameEl.className = 'contact-name';
+    nameEl.textContent = contact.name;
+    nameEl.title = contact.name;
+    if (contact.url) {
+      nameEl.href = contact.url;
+      nameEl.target = '_blank';
+      nameEl.rel = 'noopener';
+    }
+    nameEl.addEventListener('click', e => e.stopPropagation());
+    row.appendChild(nameEl);
+
+    // Grid — 52 cells (one per week, showing the most active day)
+    const grid = document.createElement('div');
+    grid.className = 'grid-row';
+
+    for (let w = 0; w < WEEKS; w++) {
+      // Find best type for this week (Mon–Sun)
+      let bestType = null;
+      let bestDates = [];
+      for (let d = 0; d < 7; d++) {
+        const ds = dates[w * 7 + d];
+        if (dateMap[ds]) {
+          const t = dateMap[ds];
+          const pi = TYPE_PRIORITY.indexOf(t);
+          const bi = bestType ? TYPE_PRIORITY.indexOf(bestType) : 999;
+          if (pi < bi) {
+            bestType = t;
+            bestDates = [ds];
+          } else if (pi === bi) {
+            bestDates.push(ds);
+          }
+        }
+      }
+
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (bestType ? ' ' + typeClass(bestType) : '');
+      if (bestType) {
+        cell.setAttribute('data-tip', bestDates[0] + ' · ' + bestType);
+      }
+      grid.appendChild(cell);
+    }
+
+    row.appendChild(grid);
+
+    // Count badge
+    const count = document.createElement('span');
+    count.className = 'contact-count';
+    count.textContent = contact.interactions.length;
+    row.appendChild(count);
+
+    list.appendChild(row);
+  });
+}
+
+function sortContacts(contacts, mode) {
+  const c = [...contacts];
+  if (mode === 'name') {
+    c.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (mode === 'count-asc') {
+    c.sort((a, b) => a.interactions.length - b.interactions.length);
+  } else if (mode === 'count-desc') {
+    c.sort((a, b) => b.interactions.length - a.interactions.length);
+  } else if (mode === 'recent') {
+    c.sort((a, b) => {
+      const aMax = a.interactions.reduce((m, i) => i.date > m ? i.date : m, '');
+      const bMax = b.interactions.reduce((m, i) => i.date > m ? i.date : m, '');
+      return bMax.localeCompare(aMax);
+    });
+  }
+  return c;
+}
+
+function filterAndRender() {
+  const q = document.getElementById('search').value.toLowerCase().trim();
+  let contacts = sortContacts(allContacts, sortMode);
+  if (q) contacts = contacts.filter(c => c.name.toLowerCase().includes(q));
+  renderContacts(contacts);
+}
+
+// Sort buttons
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sortMode = btn.dataset.sort;
+    filterAndRender();
+  });
+});
+
+// Search
+document.getElementById('search').addEventListener('input', filterAndRender);
+
+// Fetch from Netlify function
+async function load() {
+  const status = document.getElementById('status');
+  try {
+    const res = await fetch('/.netlify/functions/notion');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    allContacts = data.contacts || [];
+    if (allContacts.length === 0) {
+      status.textContent = 'No interactions logged yet. Add some in the Interactions Log.';
+      return;
+    }
+    filterAndRender();
+  } catch (err) {
+    status.className = 'status error';
+    status.textContent = 'Error loading data: ' + err.message;
+  }
+}
+
+load();
+</script>
+</body>
+</html>
