@@ -407,37 +407,47 @@ const TYPE_PRIORITY = ['Meeting','Call','WhatsApp','Email'];
 let allContacts = [];
 let sortMode = 'name';
 
-// Build date index: Jan 1 → Dec 31 of current year
-// One column = one week (Mon–Sun). Week 0 = the week containing Jan 1.
+// Build date index: strictly Jan 1 to Dec 31 of current year
+// Each column = one week. Week index is based on day-of-year / 7.
 function buildDateIndex() {
   const year = new Date().getFullYear();
-
-  // Anchor: Monday of the week containing Jan 1
   const jan1 = new Date(year, 0, 1);
-  const dow = jan1.getDay(); // 0=Sun
-  const daysToMon = dow === 0 ? 6 : dow - 1;
-  const firstDay = new Date(jan1);
-  firstDay.setDate(jan1.getDate() - daysToMon);
-
-  // Last week: Monday of the week containing Dec 31
   const dec31 = new Date(year, 11, 31);
+
+  // Build every day of the year
+  const allDays = [];
+  for (let d = new Date(jan1); d <= dec31; d.setDate(d.getDate() + 1)) {
+    allDays.push(new Date(d).toISOString().substring(0, 10));
+  }
+
+  // Group days into weeks: week 0 = Jan 1-7, week 1 = Jan 8-14, etc.
+  // But align to Mon-Sun: find Monday on or before Jan 1
+  const dow = jan1.getDay();
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const firstMonday = new Date(jan1);
+  firstMonday.setDate(jan1.getDate() - daysToMon);
+
+  // Last Monday on or before Dec 31
   const dowDec = dec31.getDay();
   const daysToMonDec = dowDec === 0 ? 6 : dowDec - 1;
   const lastMonday = new Date(dec31);
   lastMonday.setDate(dec31.getDate() - daysToMonDec);
 
   const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-  const WEEKS = Math.round((lastMonday - firstDay) / msPerWeek) + 1;
+  const WEEKS = Math.round((lastMonday - firstMonday) / msPerWeek) + 1;
 
+  // Build dates array week by week, but only include dates in current year
   const dates = [];
   for (let w = 0; w < WEEKS; w++) {
     for (let d = 0; d < 7; d++) {
-      const dt = new Date(firstDay);
-      dt.setDate(firstDay.getDate() + w * 7 + d);
-      dates.push(dt.toISOString().substring(0, 10));
+      const dt = new Date(firstMonday);
+      dt.setDate(firstMonday.getDate() + w * 7 + d);
+      const ds = dt.toISOString().substring(0, 10);
+      // Only include dates within the current year
+      dates.push(dt.getFullYear() === year ? ds : null);
     }
   }
-  return { dates, firstDay, WEEKS, year };
+  return { dates, firstDay: firstMonday, WEEKS, year };
 }
 
 function buildMonthLabels(firstDay, WEEKS, year) {
@@ -447,19 +457,24 @@ function buildMonthLabels(firstDay, WEEKS, year) {
   let lastMonth = -1;
 
   for (let w = 0; w < WEEKS; w++) {
-    // Use Thursday of the week to determine the month (ISO standard)
-    const dt = new Date(firstDay);
-    dt.setDate(firstDay.getDate() + w * 7 + 3);
-    const m = dt.getMonth();
-    const y = dt.getFullYear();
+    // Find the first day of this week that's in the current year
+    let labelDt = null;
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(firstDay);
+      dt.setDate(firstDay.getDate() + w * 7 + d);
+      if (dt.getFullYear() === year) { labelDt = dt; break; }
+    }
 
     const el = document.createElement('div');
     el.className = 'month-label';
     el.style.width = cellW + 'px';
 
-    if (m !== lastMonth && y === year) {
-      el.textContent = dt.toLocaleString('default', { month: 'short' });
-      lastMonth = m;
+    if (labelDt) {
+      const m = labelDt.getMonth();
+      if (m !== lastMonth) {
+        el.textContent = labelDt.toLocaleString('default', { month: 'short' });
+        lastMonth = m;
+      }
     }
     container.appendChild(el);
   }
@@ -523,11 +538,14 @@ function renderContacts(contacts) {
     grid.className = 'grid-row';
 
     for (let w = 0; w < WEEKS; w++) {
-      // Find best type for this week (Mon–Sun)
+      // Find best type for this week (Mon–Sun), skip null (out-of-year) dates
       let bestType = null;
       let bestDates = [];
+      let hasAnyDay = false;
       for (let d = 0; d < 7; d++) {
         const ds = dates[w * 7 + d];
+        if (ds === null) continue;
+        hasAnyDay = true;
         if (dateMap[ds]) {
           const t = dateMap[ds];
           const pi = TYPE_PRIORITY.indexOf(t);
@@ -540,6 +558,9 @@ function renderContacts(contacts) {
           }
         }
       }
+
+      // Skip weeks that are entirely outside the current year
+      if (!hasAnyDay) continue;
 
       const cell = document.createElement('div');
       cell.className = 'cell' + (bestType ? ' ' + typeClass(bestType) : '');
