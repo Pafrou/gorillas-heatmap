@@ -60,8 +60,23 @@ exports.handler = async function (event) {
       const props = page.properties;
 
       const type = props.Type?.select?.name || null;
-      const date = props.Date?.created_time || page.created_time;
-      const dateStr = date ? date.substring(0, 10) : null;
+
+      // Read from the correct formula property based on type
+      let dateStr = null;
+      if (type === "Meeting") {
+        dateStr = props["Date Meeting"]?.formula?.string || null;
+      } else if (type === "Call") {
+        dateStr = props["Date Call"]?.formula?.string || null;
+      } else if (type === "WhatsApp") {
+        dateStr = props["Date WhatsApp"]?.formula?.string || null;
+      } else if (type === "Email") {
+        dateStr = props["Date Email"]?.formula?.string || null;
+      }
+      // Fallback to created_time if formula is empty
+      if (!dateStr) {
+        const fallback = props.Date?.created_time || page.created_time;
+        dateStr = fallback ? fallback.substring(0, 10) : null;
+      }
 
       // Contact relation — get first linked contact
       const contactRelation = props.Contact?.relation || [];
