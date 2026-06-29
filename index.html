@@ -470,11 +470,16 @@ function typeClass(type) {
 }
 
 function renderContacts(contacts) {
+  // Remove old contact rows only, keep month header row
   const list = document.getElementById('contactsInner');
-  list.innerHTML = '';
+  const existingRows = list.querySelectorAll('.contact-row, .status');
+  existingRows.forEach(el => el.remove());
 
   if (contacts.length === 0) {
-    list.innerHTML = '<div class="status">No contacts found.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'status';
+    empty.textContent = 'No contacts found.';
+    list.appendChild(empty);
     return;
   }
 
