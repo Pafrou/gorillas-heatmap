@@ -1,3 +1,4 @@
+// v2
 exports.handler = async function (event) {
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
   const DB_ID = process.env.INTERACTIONS_DB_ID;
