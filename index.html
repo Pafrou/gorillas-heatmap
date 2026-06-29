@@ -274,7 +274,6 @@
 </div>
 
 <script>
-const WEEKS = 52;
 const CELL = 11;
 const GAP = 2;
 const TYPE_PRIORITY = ['Meeting','Call','WhatsApp','Email'];
@@ -282,18 +281,27 @@ const TYPE_PRIORITY = ['Meeting','Call','WhatsApp','Email'];
 let allContacts = [];
 let sortMode = 'name';
 
-// Build date index: 52 weeks back from today
+// Build date index: Jan 1 → Dec 31 of current year
 function buildDateIndex() {
-  const today = new Date();
-  const dow = today.getDay(); // 0=Sun
+  const year = new Date().getFullYear();
+
+  // Start from Monday on or before Jan 1
+  const jan1 = new Date(year, 0, 1);
+  const dow = jan1.getDay();
   const daysToMon = dow === 0 ? 6 : dow - 1;
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - daysToMon);
+  const firstDay = new Date(jan1);
+  firstDay.setDate(jan1.getDate() - daysToMon);
 
-  const firstDay = new Date(weekStart);
-  firstDay.setDate(weekStart.getDate() - (WEEKS - 1) * 7);
+  // End at Sunday on or after Dec 31
+  const dec31 = new Date(year, 11, 31);
+  const dowEnd = dec31.getDay();
+  const daysToSun = dowEnd === 0 ? 0 : 7 - dowEnd;
+  const lastDay = new Date(dec31);
+  lastDay.setDate(dec31.getDate() + daysToSun);
 
-  // Build array of 52*7 dates, column-major (week by week, Mon–Sun)
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const WEEKS = Math.ceil((lastDay - firstDay) / msPerWeek);
+
   const dates = [];
   for (let w = 0; w < WEEKS; w++) {
     for (let d = 0; d < 7; d++) {
@@ -302,10 +310,10 @@ function buildDateIndex() {
       dates.push(dt.toISOString().substring(0, 10));
     }
   }
-  return { dates, firstDay };
+  return { dates, firstDay, WEEKS };
 }
 
-function buildMonthLabels(firstDay) {
+function buildMonthLabels(firstDay, WEEKS) {
   const container = document.getElementById('monthLabels');
   container.innerHTML = '';
   const cellW = CELL + GAP;
@@ -342,8 +350,8 @@ function renderContacts(contacts) {
     return;
   }
 
-  const { dates, firstDay } = buildDateIndex();
-  buildMonthLabels(firstDay);
+  const { dates, firstDay, WEEKS } = buildDateIndex();
+  buildMonthLabels(firstDay, WEEKS);
 
   // Build date→type map per contact
   contacts.forEach(contact => {
@@ -376,7 +384,7 @@ function renderContacts(contacts) {
     nameEl.addEventListener('click', e => e.stopPropagation());
     row.appendChild(nameEl);
 
-    // Grid — 52 cells (one per week, showing the most active day)
+    // Grid — one cell per week Jan→Dec
     const grid = document.createElement('div');
     grid.className = 'grid-row';
 
