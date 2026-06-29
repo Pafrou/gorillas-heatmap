@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v10 -->
+<!-- v11 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -13,7 +13,6 @@
     color: #1A1A1A;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
     font-size: 13px;
-    overflow-x: auto;
   }
 
   header {
@@ -37,10 +36,7 @@
   }
 
   .legend-item { display: flex; align-items: center; gap: 4px; }
-
-  .dot {
-    width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0;
-  }
+  .dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
 
   .sort-bar {
     display: flex;
@@ -61,10 +57,7 @@
     cursor: pointer;
   }
 
-  .sort-btn.active, .sort-btn:hover {
-    border-color: #888;
-    color: #1A1A1A;
-  }
+  .sort-btn.active, .sort-btn:hover { border-color: #888; color: #1A1A1A; }
 
   input[type="search"] {
     background: #EDE8DF;
@@ -77,42 +70,36 @@
     outline: none;
   }
 
-  /* The whole grid is one table-like structure */
   .heatmap-wrap {
     padding: 10px 20px 40px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  .heatmap-table {
+  table {
     border-collapse: collapse;
     white-space: nowrap;
   }
 
-  /* Month header row */
-  .month-row td {
+  /* Month header */
+  .month-label-cell {
     font-size: 10px;
     color: #888;
-    padding-bottom: 4px;
-    vertical-align: bottom;
     font-weight: 500;
+    padding-bottom: 4px;
+    text-align: left;
+    vertical-align: bottom;
   }
 
   .name-cell {
     font-size: 12px;
-    color: #1A1A1A;
-    padding-right: 12px;
-    text-align: left;
+    padding-right: 14px;
     vertical-align: middle;
     white-space: nowrap;
   }
 
-  .name-cell a {
-    color: #1A1A1A;
-    text-decoration: none;
-  }
-
-  .name-cell a:hover { color: #000; text-decoration: underline; }
+  .name-cell a { color: #1A1A1A; text-decoration: none; }
+  .name-cell a:hover { text-decoration: underline; }
 
   .count-cell {
     font-size: 10px;
@@ -121,32 +108,47 @@
     vertical-align: middle;
   }
 
-  /* Each week cell */
-  .week-cell {
-    width: 12px;
-    height: 12px;
+  /* Week cells */
+  td.wk {
     padding: 1px;
     vertical-align: middle;
   }
 
-  .week-cell div {
+  td.wk div {
     width: 10px;
     height: 10px;
     border-radius: 2px;
     background: #E0D8CC;
+    cursor: default;
+    position: relative;
   }
 
-  .week-cell div.meeting { background: #4a9eff; }
-  .week-cell div.call    { background: #FF0066; }
-  .week-cell div.whatsapp{ background: #3ecf6a; }
-  .week-cell div.email   { background: #999; }
+  td.wk div.meeting  { background: #4a9eff; }
+  td.wk div.call     { background: #FF0066; }
+  td.wk div.whatsapp { background: #3ecf6a; }
+  td.wk div.email    { background: #999; }
+
+  /* Tooltip */
+  td.wk div[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: fixed;
+    background: #333;
+    color: #fff;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+    margin-top: -28px;
+    margin-left: -20px;
+  }
 
   .status {
     text-align: center;
     padding: 60px 20px;
     color: #888;
   }
-
   .status.error { color: #e05555; }
 </style>
 </head>
@@ -175,12 +177,8 @@
 
 <div class="heatmap-wrap">
   <div id="status" class="status">Loading…</div>
-  <table class="heatmap-table" id="heatmapTable" style="display:none;">
-    <thead>
-      <tr class="month-row" id="monthRow">
-        <td></td><!-- name spacer -->
-      </tr>
-    </thead>
+  <table id="heatmapTable" style="display:none">
+    <thead id="heatmapHead"></thead>
     <tbody id="heatmapBody"></tbody>
   </table>
 </div>
@@ -192,44 +190,58 @@ let nWeeks = 53;
 let monthLabels = [];
 let sortMode = 'name';
 
-function typeClass(t) {
-  if (!t) return '';
-  return t.toLowerCase();
+function typeClass(t) { return t ? t.toLowerCase() : ''; }
+
+function buildMonthHeader() {
+  const head = document.getElementById('heatmapHead');
+  head.innerHTML = '';
+  const tr = document.createElement('tr');
+
+  // Empty cell for name column
+  const nameTh = document.createElement('th');
+  tr.appendChild(nameTh);
+
+  // Group consecutive weeks by month
+  let i = 0;
+  while (i < monthLabels.length) {
+    const label = monthLabels[i];
+    // Count how many consecutive weeks share this month label (until next non-empty label)
+    let span = 1;
+    while (i + span < monthLabels.length && monthLabels[i + span] === '') span++;
+
+    const th = document.createElement('th');
+    th.className = 'month-label-cell';
+    th.colSpan = span;
+    th.textContent = label || '';
+    tr.appendChild(th);
+    i += span;
+  }
+
+  // Empty cell for count column
+  tr.appendChild(document.createElement('th'));
+  head.appendChild(tr);
 }
 
 function buildTable(contacts) {
   const table = document.getElementById('heatmapTable');
   const body = document.getElementById('heatmapBody');
-  const monthRow = document.getElementById('monthRow');
-
-  // Clear
   body.innerHTML = '';
-  // Rebuild month header (keep first td spacer)
-  monthRow.innerHTML = '<td></td>';
-  monthLabels.forEach(label => {
-    const td = document.createElement('td');
-    td.textContent = label;
-    td.colSpan = 1;
-    monthRow.appendChild(td);
-  });
-  // Add count spacer
-  monthRow.appendChild(document.createElement('td'));
+
+  buildMonthHeader();
 
   if (contacts.length === 0) {
     document.getElementById('status').textContent = 'No contacts found.';
+    document.getElementById('status').style.display = '';
     table.style.display = 'none';
     return;
   }
 
   contacts.forEach(contact => {
-    // Build weekIndex → best type map
-    const weekMap = {};
-    const weekDate = {};
+    const weekMap = {}, weekDate = {};
     contact.interactions.forEach(i => {
       const w = i.weekIndex;
       if (weekMap[w] === undefined) {
-        weekMap[w] = i.type;
-        weekDate[w] = i.date;
+        weekMap[w] = i.type; weekDate[w] = i.date;
       } else {
         const ex = TYPE_PRIORITY.indexOf(weekMap[w]);
         const inc = TYPE_PRIORITY.indexOf(i.type);
@@ -239,7 +251,7 @@ function buildTable(contacts) {
 
     const tr = document.createElement('tr');
 
-    // Name cell
+    // Name
     const nameTd = document.createElement('td');
     nameTd.className = 'name-cell';
     const a = document.createElement('a');
@@ -252,18 +264,18 @@ function buildTable(contacts) {
     // Week cells
     for (let w = 0; w < nWeeks; w++) {
       const td = document.createElement('td');
-      td.className = 'week-cell';
+      td.className = 'wk';
       const div = document.createElement('div');
       const t = weekMap[w];
       if (t) {
         div.className = typeClass(t);
-        div.title = (weekDate[w] || '') + ' · ' + t;
+        div.setAttribute('data-tip', (weekDate[w] || '') + ' · ' + t);
       }
       td.appendChild(div);
       tr.appendChild(td);
     }
 
-    // Count cell
+    // Count
     const countTd = document.createElement('td');
     countTd.className = 'count-cell';
     countTd.textContent = contact.interactions.length;
@@ -282,8 +294,8 @@ function sortContacts(contacts, mode) {
   else if (mode === 'count-asc') c.sort((a,b) => a.interactions.length - b.interactions.length);
   else if (mode === 'count-desc') c.sort((a,b) => b.interactions.length - a.interactions.length);
   else if (mode === 'recent') c.sort((a,b) => {
-    const aM = a.interactions.reduce((m,i) => i.date > m ? i.date : m, '');
-    const bM = b.interactions.reduce((m,i) => i.date > m ? i.date : m, '');
+    const aM = a.interactions.reduce((m,i) => i.date>m?i.date:m,'');
+    const bM = b.interactions.reduce((m,i) => i.date>m?i.date:m,'');
     return bM.localeCompare(aM);
   });
   return c;
