@@ -198,19 +198,17 @@
   .dot-email { background: var(--email); }
 
   /* Month labels row */
-  .month-header {
+  .month-header-row {
     display: flex;
     align-items: center;
-    padding: 10px 20px 4px;
+    padding: 6px 0 4px;
     position: sticky;
-    top: 53px;
+    top: 0;
     background: var(--bg);
     z-index: 9;
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    scrollbar-width: none;
+    min-width: fit-content;
   }
-  .month-header::-webkit-scrollbar { display: none; }
 
   .month-spacer {
     width: var(--name-w);
@@ -220,6 +218,7 @@
     left: 0;
     background: var(--bg);
     z-index: 3;
+    padding-bottom: 2px;
   }
 
   .month-labels {
@@ -233,17 +232,20 @@
     color: var(--muted);
     text-align: left;
     flex-shrink: 0;
+    overflow: visible;
+    white-space: nowrap;
   }
 
   /* Contact rows */
   .contacts-list {
-    padding: 6px 20px 40px;
+    padding: 0 20px 40px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
   .contacts-inner {
     min-width: fit-content;
+    padding-top: 0;
   }
 
   .contact-row {
@@ -387,13 +389,12 @@
   <button class="sort-btn" data-sort="recent">Most recent</button>
 </div>
 
-<div class="month-header">
-  <div class="month-spacer"></div>
-  <div class="month-labels" id="monthLabels"></div>
-</div>
-
 <div class="contacts-list" id="contactsList">
   <div class="contacts-inner" id="contactsInner">
+    <div class="month-header-row" id="monthHeaderRow">
+      <div class="month-spacer"></div>
+      <div class="month-labels" id="monthLabels"></div>
+    </div>
     <div class="status" id="status">Loading interactions…</div>
   </div>
 </div>
@@ -425,7 +426,7 @@ function buildDateIndex() {
   lastDay.setDate(dec31.getDate() + daysToSun);
 
   const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-  const WEEKS = Math.round((lastDay - firstDay) / msPerWeek);
+  const WEEKS = Math.ceil((lastDay - firstDay + 1) / msPerWeek);
 
   const dates = [];
   for (let w = 0; w < WEEKS; w++) {
@@ -592,27 +593,6 @@ document.querySelectorAll('.sort-btn').forEach(btn => {
 // Search
 document.getElementById('search').addEventListener('input', filterAndRender);
 
-// Sync month header scroll with contacts list
-function setupScrollSync() {
-  const list = document.getElementById('contactsList');
-  const header = document.querySelector('.month-header');
-  let syncingList = false, syncingHeader = false;
-
-  list.addEventListener('scroll', () => {
-    if (syncingHeader) return;
-    syncingList = true;
-    header.scrollLeft = list.scrollLeft;
-    syncingList = false;
-  });
-
-  header.addEventListener('scroll', () => {
-    if (syncingList) return;
-    syncingHeader = true;
-    list.scrollLeft = header.scrollLeft;
-    syncingHeader = false;
-  });
-}
-
 // Fetch from Netlify function
 async function load() {
   const status = document.getElementById('status');
@@ -634,7 +614,6 @@ async function load() {
 }
 
 load();
-setupScrollSync();
 </script>
 </body>
 </html>
