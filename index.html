@@ -6,20 +6,121 @@
 <title>Gorillas — Contact Heatmap</title>
 <style>
   :root {
-    --bg: #111111;
-    --surface: #1a1a1a;
-    --border: #2a2a2a;
-    --text: #e8e8e8;
-    --muted: #555;
+    --bg: #F5F0E8;
+    --surface: #EDE8DF;
+    --border: #D8D0C4;
+    --text: #1A1A1A;
+    --muted: #888;
     --meeting: #4a9eff;
-    --call: #3ecf6a;
-    --whatsapp: #f5c842;
-    --email: #888;
-    --empty: #222;
-    --hover-bg: #242424;
+    --call: #FF0066;
+    --whatsapp: #3ecf6a;
+    --email: #999;
+    --empty: #E0D8CC;
+    --hover-bg: #EDE8DF;
     --name-w: 160px;
     --cell: 11px;
     --gap: 2px;
+  }
+
+  /* Tablet */
+  @media (max-width: 900px) {
+    :root {
+      --name-w: 110px;
+      --cell: 9px;
+      --gap: 2px;
+    }
+    header {
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px 14px;
+    }
+    .legend {
+      gap: 8px;
+    }
+    input[type="search"] {
+      width: 140px;
+    }
+    .sort-bar {
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 6px 14px;
+    }
+    .contacts-list {
+      padding: 4px 14px 30px;
+    }
+    .month-header {
+      padding: 8px 14px 4px;
+    }
+    .month-spacer {
+      width: var(--name-w);
+    }
+  }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    :root {
+      --name-w: 72px;
+      --cell: 6px;
+      --gap: 1px;
+    }
+    header {
+      padding: 10px 10px;
+      gap: 6px;
+    }
+    .title {
+      font-size: 13px;
+    }
+    .controls {
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    input[type="search"] {
+      width: 120px;
+      font-size: 11px;
+    }
+    .legend {
+      gap: 6px;
+      font-size: 10px;
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+    }
+    .sort-bar {
+      padding: 5px 10px;
+      gap: 4px;
+    }
+    .sort-btn {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+    .sort-label {
+      font-size: 10px;
+    }
+    .month-header {
+      padding: 6px 10px 3px;
+      top: 48px;
+    }
+    .month-spacer {
+      width: var(--name-w);
+    }
+    .month-label {
+      font-size: 8px;
+    }
+    .contacts-list {
+      padding: 3px 10px 20px;
+    }
+    .contact-name {
+      font-size: 10px;
+      padding-right: 6px;
+    }
+    .contact-count {
+      font-size: 9px;
+      padding-left: 6px;
+    }
+    .contact-row {
+      padding: 2px 0;
+    }
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -106,11 +207,19 @@
     background: var(--bg);
     z-index: 9;
     border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .month-header::-webkit-scrollbar { display: none; }
 
   .month-spacer {
     width: var(--name-w);
+    min-width: var(--name-w);
     flex-shrink: 0;
+    position: sticky;
+    left: 0;
+    background: var(--bg);
+    z-index: 3;
   }
 
   .month-labels {
@@ -129,6 +238,12 @@
   /* Contact rows */
   .contacts-list {
     padding: 6px 20px 40px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .contacts-inner {
+    min-width: fit-content;
   }
 
   .contact-row {
@@ -138,12 +253,15 @@
     border-radius: 5px;
     cursor: pointer;
     transition: background 0.1s;
+    width: 100%;
+    position: relative;
   }
 
   .contact-row:hover { background: var(--hover-bg); }
 
   .contact-name {
     width: var(--name-w);
+    min-width: var(--name-w);
     flex-shrink: 0;
     font-size: 12px;
     color: var(--text);
@@ -152,6 +270,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     text-decoration: none;
+    position: sticky;
+    left: 0;
+    background: var(--bg);
+    z-index: 2;
   }
 
   .contact-name:hover { color: #fff; }
@@ -195,7 +317,8 @@
   .contact-count {
     font-size: 10px;
     color: var(--muted);
-    margin-left: 8px;
+    margin-left: auto;
+    padding-left: 12px;
     flex-shrink: 0;
   }
 
@@ -270,7 +393,9 @@
 </div>
 
 <div class="contacts-list" id="contactsList">
-  <div class="status" id="status">Loading interactions…</div>
+  <div class="contacts-inner" id="contactsInner">
+    <div class="status" id="status">Loading interactions…</div>
+  </div>
 </div>
 
 <script>
@@ -285,14 +410,14 @@ let sortMode = 'name';
 function buildDateIndex() {
   const year = new Date().getFullYear();
 
-  // Start from Monday on or before Jan 1
+  // First Monday on or before Jan 1
   const jan1 = new Date(year, 0, 1);
   const dow = jan1.getDay();
   const daysToMon = dow === 0 ? 6 : dow - 1;
   const firstDay = new Date(jan1);
   firstDay.setDate(jan1.getDate() - daysToMon);
 
-  // End at Sunday on or after Dec 31
+  // Last Sunday on or after Dec 31
   const dec31 = new Date(year, 11, 31);
   const dowEnd = dec31.getDay();
   const daysToSun = dowEnd === 0 ? 0 : 7 - dowEnd;
@@ -300,7 +425,7 @@ function buildDateIndex() {
   lastDay.setDate(dec31.getDate() + daysToSun);
 
   const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-  const WEEKS = Math.ceil((lastDay - firstDay) / msPerWeek);
+  const WEEKS = Math.round((lastDay - firstDay) / msPerWeek);
 
   const dates = [];
   for (let w = 0; w < WEEKS; w++) {
@@ -310,10 +435,10 @@ function buildDateIndex() {
       dates.push(dt.toISOString().substring(0, 10));
     }
   }
-  return { dates, firstDay, WEEKS };
+  return { dates, firstDay, WEEKS, year };
 }
 
-function buildMonthLabels(firstDay, WEEKS) {
+function buildMonthLabels(firstDay, WEEKS, year) {
   const container = document.getElementById('monthLabels');
   container.innerHTML = '';
   const cellW = CELL + GAP;
@@ -323,12 +448,14 @@ function buildMonthLabels(firstDay, WEEKS) {
     const dt = new Date(firstDay);
     dt.setDate(firstDay.getDate() + w * 7);
     const m = dt.getMonth();
+    const y = dt.getFullYear();
 
     const el = document.createElement('div');
     el.className = 'month-label';
     el.style.width = cellW + 'px';
 
-    if (m !== lastMonth) {
+    // Only label months that belong to the current year
+    if (m !== lastMonth && y === year) {
       el.textContent = dt.toLocaleString('default', { month: 'short' });
       lastMonth = m;
     }
@@ -342,7 +469,7 @@ function typeClass(type) {
 }
 
 function renderContacts(contacts) {
-  const list = document.getElementById('contactsList');
+  const list = document.getElementById('contactsInner');
   list.innerHTML = '';
 
   if (contacts.length === 0) {
@@ -350,8 +477,8 @@ function renderContacts(contacts) {
     return;
   }
 
-  const { dates, firstDay, WEEKS } = buildDateIndex();
-  buildMonthLabels(firstDay, WEEKS);
+  const { dates, firstDay, WEEKS, year } = buildDateIndex();
+  buildMonthLabels(firstDay, WEEKS, year);
 
   // Build date→type map per contact
   contacts.forEach(contact => {
@@ -465,6 +592,27 @@ document.querySelectorAll('.sort-btn').forEach(btn => {
 // Search
 document.getElementById('search').addEventListener('input', filterAndRender);
 
+// Sync month header scroll with contacts list
+function setupScrollSync() {
+  const list = document.getElementById('contactsList');
+  const header = document.querySelector('.month-header');
+  let syncingList = false, syncingHeader = false;
+
+  list.addEventListener('scroll', () => {
+    if (syncingHeader) return;
+    syncingList = true;
+    header.scrollLeft = list.scrollLeft;
+    syncingList = false;
+  });
+
+  header.addEventListener('scroll', () => {
+    if (syncingList) return;
+    syncingHeader = true;
+    list.scrollLeft = header.scrollLeft;
+    syncingHeader = false;
+  });
+}
+
 // Fetch from Netlify function
 async function load() {
   const status = document.getElementById('status');
@@ -486,6 +634,7 @@ async function load() {
 }
 
 load();
+setupScrollSync();
 </script>
 </body>
 </html>
